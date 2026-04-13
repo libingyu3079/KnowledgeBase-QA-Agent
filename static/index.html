@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>企业级知识库智能助理</title>
+    
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
+    
+    <!-- Tailwind & Plugins -->
+    <script src="https://cdn.tailwindcss.com?plugins=typography"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Outfit', 'sans-serif'],
+                        mono: ['Fira Code', 'monospace'],
+                    },
+                    colors: {
+                        brand: {
+                            50: '#eff6ff',
+                            100: '#dbeafe',
+                            500: '#3b82f6',
+                            600: '#2563eb',
+                            700: '#1d4ed8',
+                            900: '#1e3a8a',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    
+    <!-- Vue 3 & Marked.js -->
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    
+    <style>
+        [v-cloak] { display: none; }
+        
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #e4e4e7;
+            border-radius: 10px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #d4d4d8;
+        }
+
+        /* Markdown Prose overrides */
+        .prose pre {
+            background-color: #18181b !important;
+            border-radius: 0.75rem;
+        }
+        .prose code {
+            color: #2563eb;
+            background-color: #eff6ff;
+            padding: 0.125rem 0.25rem;
+            border-radius: 0.25rem;
+            font-weight: 500;
+        }
+        .prose pre code {
+            color: #e4e4e7;
+            background-color: transparent;
+            padding: 0;
+        }
+    </style>
+</head>
+<body class="bg-zinc-50 text-zinc-800 h-screen overflow-hidden antialiased selection:bg-brand-500 selection:text-white">
+    <div id="app" v-cloak class="flex h-full w-full">
+        
+        <!-- Sidebar: Knowledge Management -->
+        <aside class="w-96 bg-white border-r border-zinc-200 flex flex-col shadow-[4px_0_24px_rgba(0,0,0,0.02)] z-10 relative">
+            <div class="p-6 border-b border-zinc-100 flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-brand-500 to-brand-700 flex items-center justify-center shadow-lg shadow-brand-500/30">
+                    <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+                </div>
+                <div>
+                    <h1 class="text-lg font-bold text-zinc-900 tracking-tight">智能知识库</h1>
+                    <p class="text-xs text-zinc-500 font-medium">Qwen Engine</p>
+                </div>
+            </div>
+
+            <div class="flex-1 overflow-y-auto p-6 space-y-8">
+                
+                <!-- Section: Data Sources -->
+                <section>
+                    <div class="flex items-center gap-2 mb-4">
+                        <div class="w-6 h-6 rounded-full bg-zinc-100 flex items-center justify-center text-xs font-bold text-zinc-500">1</div>
+                        <h2 class="text-sm font-bold text-zinc-800 uppercase tracking-widest">导入知识</h2>
+                    </div>
+                    
+                    <!-- Toggle Type -->
+                    <div class="flex p-1 bg-zinc-100 rounded-lg mb-4">
+                        <button @click="uploadType = 'text'" :class="uploadType === 'text' ? 'bg-white text-zinc-900 shadow-sm' : 'text-zinc-500 hover:text-zinc-700'" class="flex-1 py-1.5 text-xs font-semibold rounded-md transition-all">
+                            粘贴文本
+                        </button>
+                        <button @click="uploadType = 'file'" :class="uploadType === 'file' ? 'bg-white text-zinc-900 shadow-sm' : 'text-zinc-500 hover:text-zinc-700'" class="flex-1 py-1.5 text-xs font-semibold rounded-md transition-all">
+                            上传文档
+                        </button>
+                    </div>
+
+                    <!-- Text Upload -->
+                    <div v-if="uploadType === 'text'" class="space-y-3">
+                        <input v-model="uploadForm.filename" type="text" placeholder="资料名称 (如: 5G介绍)" class="w-full px-4 py-2.5 bg-zinc-50 border border-zinc-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 transition-all">
+                        <textarea v-model="uploadForm.content" rows="4" placeholder="在此粘贴文本内容..." class="w-full px-4 py-2.5 bg-zinc-50 border border-zinc-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 transition-all resize-none"></textarea>
+                        <button @click="uploadMaterial" :disabled="loading" class="w-full bg-zinc-900 text-white px-4 py-2.5 rounded-lg text-sm font-semibold hover:bg-zinc-800 disabled:opacity-50 transition-colors shadow-md">
+                            {{ loading ? '处理中...' : '保存文本' }}
+                        </button>
+                    </div>
+
+                    <!-- File Upload -->
+                    <div v-if="uploadType === 'file'" class="space-y-3">
+                        <label class="flex flex-col items-center justify-center w-full h-32 border-2 border-zinc-200 border-dashed rounded-xl cursor-pointer bg-zinc-50 hover:bg-zinc-100 transition-colors">
+                            <div class="flex flex-col items-center justify-center pt-5 pb-6">
+                                <svg class="w-8 h-8 mb-3 text-zinc-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path></svg>
+                                <p class="text-sm text-zinc-500"><span class="font-semibold text-brand-600">点击选择</span> 或拖拽文件</p>
+                                <p class="text-xs text-zinc-400 mt-1">TXT, PDF, DOCX (支持多选)</p>
+                            </div>
+                            <input type="file" multiple @change="handleFileSelection" accept=".txt,.pdf,.docx,.md" class="hidden">
+                        </label>
+                        <div v-if="selectedFiles.length > 0" class="text-xs text-zinc-600 bg-zinc-100 p-2 rounded-lg">
+                            已选择 {{ selectedFiles.length }} 个文件
+                        </div>
+                        <button @click="uploadFile" :disabled="loading || selectedFiles.length === 0" class="w-full bg-zinc-900 text-white px-4 py-2.5 rounded-lg text-sm font-semibold hover:bg-zinc-800 disabled:opacity-50 transition-colors shadow-md">
+                            {{ loading ? '解析中...' : '批量上传并解析' }}
+                        </button>
+                    </div>
+                    
+                    <p class="text-emerald-600 text-xs font-medium mt-2 flex items-center gap-1" v-if="msg.upload">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                        {{ msg.upload }}
+                    </p>
+                </section>
+
+                <!-- Section: Compile -->
+                <section>
+                    <div class="flex items-center gap-2 mb-4">
+                        <div class="w-6 h-6 rounded-full bg-zinc-100 flex items-center justify-center text-xs font-bold text-zinc-500">2</div>
+                        <h2 class="text-sm font-bold text-zinc-800 uppercase tracking-widest">构建索引</h2>
+                    </div>
+                    <p class="text-xs text-zinc-500 mb-3 leading-relaxed">通过大模型对文档进行结构化拆解，提取实体与摘要，建立知识网络。</p>
+                    
+                    <div class="space-y-3">
+                        <input v-model="compileFilename" type="text" placeholder="留空则编译全部新文件" class="w-full px-4 py-2.5 bg-zinc-50 border border-zinc-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 transition-all">
+                        <button @click="compileMaterial" :disabled="loading" class="w-full bg-brand-600 text-white px-4 py-2.5 rounded-lg text-sm font-semibold hover:bg-brand-700 disabled:opacity-50 transition-colors shadow-md shadow-brand-500/20">
+                            <span class="flex items-center justify-center gap-2">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"></path></svg>
+                                {{ loading ? '智能拆解中...' : '开始构建' }}
+                            </span>
+                        </button>
+                    </div>
+                    
+                    <p class="text-emerald-600 text-xs font-medium mt-2 flex items-center gap-1" v-if="msg.compile">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                        {{ msg.compile }}
+                    </p>
+                </section>
+            </div>
+        </aside>
+
+        <!-- Main Content: Chat Interface -->
+        <main class="flex-1 flex flex-col relative bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAiIGhlaWdodD0iMjAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGNpcmNsZSBjeD0iMSIgY3k9IjEiIHI9IjEiIGZpbGw9InJnYmEoMCwwLDAsMC4wNSkiLz48L3N2Zz4=')] bg-zinc-50/50">
+            
+            <!-- Chat Header -->
+            <header class="h-16 border-b border-zinc-200 bg-white/80 backdrop-blur-md flex items-center px-8 shrink-0 sticky top-0 z-10">
+                <div class="flex items-center gap-2">
+                    <span class="relative flex h-3 w-3">
+                      <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                      <span class="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
+                    </span>
+                    <span class="text-sm font-semibold text-zinc-700">Agent 在线</span>
+                </div>
+            </header>
+
+            <!-- Chat History -->
+            <div class="flex-1 overflow-y-auto p-8 scroll-smooth" id="chat-container">
+                <div class="max-w-3xl mx-auto space-y-8 pb-4">
+                    <div v-for="(msg, idx) in chatHistory" :key="idx" class="flex gap-4" :class="msg.role === 'user' ? 'flex-row-reverse' : ''">
+                        
+                        <!-- Avatar -->
+                        <div class="shrink-0">
+                            <div v-if="msg.role === 'ai'" class="w-10 h-10 rounded-full bg-gradient-to-br from-brand-100 to-brand-200 flex items-center justify-center border border-brand-300 shadow-sm">
+                                🤖
+                            </div>
+                            <div v-else class="w-10 h-10 rounded-full bg-zinc-800 flex items-center justify-center border border-zinc-700 shadow-sm">
+                                <span class="text-white text-sm">我</span>
+                            </div>
+                        </div>
+
+                        <!-- Message Bubble -->
+                        <div class="max-w-[80%]">
+                            <div v-if="msg.role === 'user'" class="bg-zinc-800 text-white px-5 py-3.5 rounded-2xl rounded-tr-sm shadow-md text-sm leading-relaxed">
+                                {{ msg.content }}
+                            </div>
+                            <div v-else class="bg-white border border-zinc-200 px-6 py-5 rounded-2xl rounded-tl-sm shadow-sm">
+                                <!-- Markdown Rendering -->
+                                <div class="prose prose-zinc prose-sm max-w-none leading-relaxed" v-html="renderMarkdown(msg.content)"></div>
+                                
+                                <!-- Typing Indicator -->
+                                <div v-if="msg.content === '' && loading" class="flex items-center gap-1 h-6">
+                                    <div class="w-2 h-2 bg-zinc-300 rounded-full animate-bounce" style="animation-delay: 0ms"></div>
+                                    <div class="w-2 h-2 bg-zinc-300 rounded-full animate-bounce" style="animation-delay: 150ms"></div>
+                                    <div class="w-2 h-2 bg-zinc-300 rounded-full animate-bounce" style="animation-delay: 300ms"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Chat Input -->
+            <div class="p-6 bg-gradient-to-t from-zinc-50 via-zinc-50 to-transparent shrink-0">
+                <div class="max-w-3xl mx-auto relative group">
+                    <div class="absolute -inset-1 bg-gradient-to-r from-brand-500 to-purple-500 rounded-2xl blur opacity-20 group-hover:opacity-30 transition duration-500"></div>
+                    <div class="relative flex items-center bg-white border border-zinc-200 rounded-2xl shadow-sm focus-within:ring-2 focus-within:ring-brand-500/20 focus-within:border-brand-500 transition-all overflow-hidden">
+                        <input v-model="chatQuery" @keyup.enter="askQuestion" type="text" placeholder="向知识库提问 (支持多轮对话上下文)..." class="flex-1 bg-transparent border-none focus:ring-0 px-6 py-4 text-sm text-zinc-800 placeholder-zinc-400 outline-none">
+                        <button @click="askQuestion" :disabled="loading || !chatQuery.trim()" class="mr-2 p-2.5 bg-brand-600 text-white rounded-xl hover:bg-brand-700 disabled:opacity-50 disabled:hover:bg-brand-600 transition-colors shadow-sm">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"></path></svg>
+                        </button>
+                    </div>
+                    <div class="text-center mt-3">
+                        <span class="text-[10px] text-zinc-400 font-medium tracking-wide">AI 可能会犯错，请核实重要信息。</span>
+                    </div>
+                </div>
+            </div>
+
+        </main>
+    </div>
+
+    <script>
+        const { createApp, ref, reactive, nextTick } = Vue;
+
+        createApp({
+            setup() {
+                const loading = ref(false);
+                
+                // 表单数据
+                const uploadForm = reactive({ filename: '', content: '' });
+                const compileFilename = ref('');
+                const chatQuery = ref('');
+                
+                const uploadType = ref('text');
+                const selectedFiles = ref([]);
+                
+                // 状态与结果
+                const compiledData = ref(null);
+                const chatHistory = ref([{role: 'ai', content: '你好！我是你的专属知识库助理。我已经准备好回答问题了，您可以先在左侧导入并构建知识库。'}]);
+                const msg = reactive({ upload: '', compile: '' });
+
+                // Markdown 渲染方法
+                const renderMarkdown = (text) => {
+                    if (!text) return '';
+                    return marked.parse(text);
+                };
+
+                const scrollToBottom = () => {
+                    nextTick(() => {
+                        const container = document.getElementById('chat-container');
+                        if (container) {
+                            container.scrollTop = container.scrollHeight;
+                        }
+                    });
+                };
+
+                const uploadMaterial = async () => {
+                    if (!uploadForm.filename || !uploadForm.content) return alert("请填写文件名和内容");
+                    loading.value = true;
+                    try {
+                        const res = await fetch('/api/upload', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ filename: uploadForm.filename, content: uploadForm.content })
+                        });
+                        const data = await res.json();
+                        msg.upload = data.message;
+                        compileFilename.value = uploadForm.filename + '.txt'; 
+                        setTimeout(() => msg.upload = '', 3000);
+                    } catch (e) { alert("上传失败"); }
+                    finally { loading.value = false; }
+                };
+
+                const handleFileSelection = (event) => {
+                    selectedFiles.value = Array.from(event.target.files);
+                };
+
+                const uploadFile = async () => {
+                    if (selectedFiles.value.length === 0) return alert("请先选择文件");
+                    loading.value = true;
+                    const formData = new FormData();
+                    selectedFiles.value.forEach(file => {
+                        formData.append("files", file);
+                    });
+
+                    try {
+                        const res = await fetch('/api/upload_file', {
+                            method: 'POST',
+                            body: formData
+                        });
+                        const data = await res.json();
+                        if (data.detail) { alert(data.detail); return; }
+                        msg.upload = data.message;
+                        compileFilename.value = ""; 
+                        setTimeout(() => msg.upload = '', 3000);
+                        selectedFiles.value = []; // 清空选择
+                    } catch (e) { alert("文件上传解析失败"); }
+                    finally { loading.value = false; }
+                };
+
+                const compileMaterial = async () => {
+                    loading.value = true;
+                    msg.compile = '';
+                    const targetFile = compileFilename.value || "all";
+                    try {
+                        const res = await fetch('/api/compile', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ filename: targetFile })
+                        });
+                        const data = await res.json();
+                        if(data.detail) { alert(data.detail); return; }
+                        compiledData.value = data.data;
+                        msg.compile = "构建完成！索引已更新。";
+                        setTimeout(() => msg.compile = '', 3000);
+                    } catch (e) { alert("构建失败"); }
+                    finally { loading.value = false; }
+                };
+
+                const askQuestion = async () => {
+                    if (!chatQuery.value.trim()) return;
+                    const q = chatQuery.value;
+                    
+                    const historyToSend = chatHistory.value.map(m => ({ role: m.role, content: m.content }));
+                    
+                    chatHistory.value.push({ role: 'user', content: q });
+                    chatQuery.value = '';
+                    loading.value = true;
+                    scrollToBottom();
+                    
+                    chatHistory.value.push({ role: 'ai', content: '' });
+                    const aiMessage = chatHistory.value[chatHistory.value.length - 1];
+                    
+                    try {
+                        const res = await fetch('/api/chat', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ query: q, history: historyToSend })
+                        });
+                        
+                        if (!res.ok) throw new Error("请求失败");
+                        
+                        const reader = res.body.getReader();
+                        const decoder = new TextDecoder('utf-8');
+                        
+                        while (true) {
+                            const { done, value } = await reader.read();
+                            if (done) break;
+                            
+                            const textChunk = decoder.decode(value, { stream: true });
+                            aiMessage.content += textChunk;
+                            scrollToBottom(); // 实时滚动
+                        }
+                    } catch (e) { 
+                        aiMessage.content += "\n请求失败: " + e.message;
+                    }
+                    finally { loading.value = false; }
+                };
+
+                return {
+                    loading, uploadForm, compileFilename, chatQuery,
+                    uploadType, selectedFiles,
+                    compiledData, chatHistory, msg,
+                    uploadMaterial, compileMaterial, askQuestion,
+                    handleFileSelection, uploadFile, renderMarkdown
+                }
+            }
+        }).mount('#app')
+    </script>
+</body>
+</html>
